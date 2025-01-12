@@ -10,9 +10,12 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 import java.util.logging.Handler;
+import java.util.regex.Pattern;
 
 public class HttpServletRequestImpl implements HttpServletRequest {
     final HttpExchangeRequest exchangeRequest;
@@ -59,7 +62,7 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     @Override
     public String getMethod() {
-        return "";
+        return exchangeRequest.getRequestMethod();
     }
 
     @Override
@@ -104,7 +107,7 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     @Override
     public String getRequestURI() {
-        return "";
+        return this.exchangeRequest.getRequstURI().getPath();
     }
 
     @Override
@@ -222,23 +225,25 @@ public class HttpServletRequestImpl implements HttpServletRequest {
         URI requstURI = exchangeRequest.getRequstURI();
         Map<String, String> paramMap=null;
         try {
-            paramMap= decodeURI(requstURI.toString());
+            paramMap= decodeURI(requstURI.getRawQuery());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
         return paramMap.get(name) ;
     }
 
-    Map<String,String> decodeURI(String RawUri) throws URISyntaxException {
-        String[] split = RawUri.split("\\?");
-        String params;
-        Map<String,String> map = new HashMap<>();
-        if(split!=null){
-            params=split[1];
-            String[] param = params.split("&");
-            for (String s : param) {
-                String[] split1 = s.split("=");
-                map.put(split1[0],split1[1]);
+    Map<String,String> decodeURI(String query) throws URISyntaxException {
+        if (query == null || query.isEmpty()) {
+            return Map.of();
+        }
+        String[] ss = Pattern.compile("\\&").split(query);
+        Map<String, String> map = new HashMap<>();
+        for (String s : ss) {
+            int n = s.indexOf('=');
+            if (n >= 1) {
+                String key = s.substring(0, n);
+                String value = s.substring(n + 1);
+                map.putIfAbsent(key, URLDecoder.decode(value, StandardCharsets.UTF_8));
             }
         }
         return map;
