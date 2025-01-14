@@ -4,13 +4,15 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import com.traveller.adapter.HttpExchangeAdapter;
-import com.traveller.context.HelloServlet;
-import com.traveller.context.IndexServlet;
+import com.traveller.server.HelloServlet;
+import com.traveller.server.IndexServlet;
 import com.traveller.context.ServletContextImpl;
 import com.traveller.filter.HelloFilter;
 import com.traveller.filter.LogFilter;
 import com.traveller.impl.HttpServletRequestImpl;
 import com.traveller.impl.HttpServletResponseImpl;
+import com.traveller.server.LoginServlet;
+import com.traveller.server.LogoutServlet;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,7 +32,7 @@ public class HttpConnector implements HttpHandler,AutoCloseable{
 
     public HttpConnector() throws IOException, ServletException {
         this.servletContext = new ServletContextImpl();
-        this.servletContext.initializeServlet(List.of(IndexServlet.class, HelloServlet.class));
+        this.servletContext.initializeServlet(List.of(IndexServlet.class, HelloServlet.class, LoginServlet.class, LogoutServlet.class));
         this.servletContext.initFilters(List.of(LogFilter.class, HelloFilter.class));
         // start http server:
         String host = "0.0.0.0";
@@ -50,8 +52,9 @@ public class HttpConnector implements HttpHandler,AutoCloseable{
     public void handle(HttpExchange exchange) throws IOException {
         log.info("{}: {}?{}", exchange.getRequestMethod(), exchange.getRequestURI().getPath(), exchange.getRequestURI().getRawQuery());
         var adapter =new HttpExchangeAdapter(exchange);
-        var request =new HttpServletRequestImpl(adapter);
         var response = new HttpServletResponseImpl(adapter);
+        var request =new HttpServletRequestImpl(this.servletContext, adapter, response);
+
         try {
             this.servletContext.process(request,response);
         } catch (ServletException e) {

@@ -5,6 +5,7 @@ import com.traveller.filter.FilterChainImpl;
 import com.traveller.filter.FilterMapping;
 import com.traveller.filter.FilterRegistrationImpl;
 import com.traveller.mapping.ServletMapping;
+import com.traveller.session.SessionManager;
 import com.traveller.utils.AnnoUtils;
 import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebFilter;
@@ -38,6 +39,8 @@ public class ServletContextImpl implements ServletContext {
     final Map<String, FilterRegistrationImpl> filterRegistrations = new HashMap<>();
     final Map<String,Filter> nameToFilters = new HashMap<>();
     final List<FilterMapping> filterMappings = new ArrayList<>();
+
+    public final SessionManager sessionManager = new SessionManager(this, 600);
 
     public void process(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
         String path = request.getRequestURI();

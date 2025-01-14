@@ -1,4 +1,4 @@
-package com.traveller.context;
+package com.traveller.server;
 
 import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebServlet;

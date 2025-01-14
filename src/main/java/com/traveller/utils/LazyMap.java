@@ -4,6 +4,11 @@ import java.util.*;
 
 public class LazyMap<V> {
     private Map<String,V> map =null;
+    private final boolean concurrent;
+    public LazyMap(boolean concurrent) {
+        this.concurrent = concurrent;
+    }
+
     protected V get(String name) {
         if (this.map == null) {
             return null;

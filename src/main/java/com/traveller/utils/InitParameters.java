@@ -3,6 +3,11 @@ package com.traveller.utils;
 import java.util.*;
 
 public class InitParameters extends LazyMap{
+
+    public InitParameters(){
+        super(false);
+    }
+
     public boolean setInitParameter(String name, String value) {
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException("Name is null or empty.");
