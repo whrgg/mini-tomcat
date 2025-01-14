@@ -1,6 +1,8 @@
 package com.traveller.utils;
 
+import jakarta.servlet.Filter;
 import jakarta.servlet.Servlet;
+import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.annotation.WebInitParam;
 import jakarta.servlet.annotation.WebServlet;
 
@@ -65,4 +67,30 @@ public class AnnoUtils {
     public static Map<String, String> initParamsToMap(WebInitParam[] params){
         return Arrays.stream(params).collect(Collectors.toMap(p->p.name(),p->p.value()));
     }
+
+    public static String getFilterName(Class<? extends Filter> clazz){
+        WebFilter wf = clazz.getAnnotation(WebFilter.class);
+        if(wf==null||wf.filterName().isEmpty()){
+            return defaultNameByClass(clazz);
+        }
+        return wf.filterName();
+    }
+
+    public static Map<String, String> getFilterInitParams(Class<? extends Filter> clazz){
+        WebFilter wf = clazz.getAnnotation(WebFilter.class);
+        WebInitParam[] webInitParams = wf.initParams();
+        if(webInitParams!=null&&webInitParams.length>0){
+            return initParamsToMap(webInitParams);
+        }
+        return Map.of();
+    }
+
+    public static String[] getFilterUrlPatterns(Class<?> clazz){
+        WebFilter wf = clazz.getAnnotation(WebFilter.class);
+        if (wf==null){
+            return new String[0];
+        }
+        return arraysToSet(wf.value(), wf.urlPatterns()).toArray(String[]::new);
+    }
+
 }

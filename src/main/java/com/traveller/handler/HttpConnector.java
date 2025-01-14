@@ -7,6 +7,8 @@ import com.traveller.adapter.HttpExchangeAdapter;
 import com.traveller.context.HelloServlet;
 import com.traveller.context.IndexServlet;
 import com.traveller.context.ServletContextImpl;
+import com.traveller.filter.HelloFilter;
+import com.traveller.filter.LogFilter;
 import com.traveller.impl.HttpServletRequestImpl;
 import com.traveller.impl.HttpServletResponseImpl;
 import jakarta.servlet.ServletException;
@@ -28,7 +30,8 @@ public class HttpConnector implements HttpHandler,AutoCloseable{
 
     public HttpConnector() throws IOException, ServletException {
         this.servletContext = new ServletContextImpl();
-        this.servletContext.initialize(List.of(IndexServlet.class, HelloServlet.class));
+        this.servletContext.initializeServlet(List.of(IndexServlet.class, HelloServlet.class));
+        this.servletContext.initFilters(List.of(LogFilter.class, HelloFilter.class));
         // start http server:
         String host = "0.0.0.0";
         int port = 8080;
