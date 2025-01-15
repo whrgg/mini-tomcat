@@ -8,11 +8,12 @@ import java.net.URI;
 
 public interface HttpExchangeRequest{
     String getRequestMethod();
-    URI getRequstURI();
+
+    URI getRequestURI();
 
     Headers getRequestHeaders();
 
-    URI getRequestURI();
+    InetSocketAddress getRemoteAddress();
 
     InetSocketAddress getLocalAddress();
 

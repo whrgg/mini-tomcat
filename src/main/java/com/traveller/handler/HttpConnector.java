@@ -4,6 +4,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import com.traveller.adapter.HttpExchangeAdapter;
+import com.traveller.listener.*;
+import com.traveller.listener.HelloServletContextAttributeListener;
 import com.traveller.server.HelloServlet;
 import com.traveller.server.IndexServlet;
 import com.traveller.context.ServletContextImpl;
@@ -21,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.InetSocketAddress;
+import java.util.EventListener;
 import java.util.List;
 
 @Slf4j
@@ -34,6 +37,12 @@ public class HttpConnector implements HttpHandler,AutoCloseable{
         this.servletContext = new ServletContextImpl();
         this.servletContext.initializeServlet(List.of(IndexServlet.class, HelloServlet.class, LoginServlet.class, LogoutServlet.class));
         this.servletContext.initFilters(List.of(LogFilter.class, HelloFilter.class));
+        List<Class<? extends EventListener>> listenerClasses = List.of(HelloHttpSessionAttributeListener.class, HelloHttpSessionListener.class,
+                HelloServletContextAttributeListener.class, HelloServletContextListener.class, HelloServletRequestAttributeListener.class,
+                HelloServletRequestListener.class);
+        for (Class<? extends EventListener> listenerClass : listenerClasses) {
+            this.servletContext.addListener(listenerClass);
+        }
         // start http server:
         String host = "0.0.0.0";
         int port = 8080;
