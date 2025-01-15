@@ -2,6 +2,7 @@ package com.traveller.impl;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -12,12 +13,14 @@ import java.util.Locale;
 
 import com.traveller.adapter.HttpExchangeResponse;
 import com.traveller.session.HttpHeaders;
+import com.traveller.utils.Config;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 
 public class HttpServletResponseImpl implements HttpServletResponse {
 
+    final Config config;
     final HttpExchangeResponse exchangeResponse;
     final HttpHeaders headers;
 
@@ -28,14 +31,23 @@ public class HttpServletResponseImpl implements HttpServletResponse {
     PrintWriter writer;
 
     String contentType;
+    String characterEncoding;
     long contentLength = 0;
+    Locale locale = null;
     List<Cookie> cookies = null;
     boolean committed = false;
 
-    public HttpServletResponseImpl(HttpExchangeResponse exchangeResponse) {
+    public HttpServletResponseImpl(Config config, HttpExchangeResponse exchangeResponse) {
+        this.config = config;
         this.exchangeResponse = exchangeResponse;
-        this.headers = new com.traveller.session.HttpHeaders(exchangeResponse.getResponseHeaders());
+        this.headers = new HttpHeaders(exchangeResponse.getResponseHeaders());
+        this.characterEncoding = config.server.responseEncoding;
         this.setContentType("text/html");
+    }
+
+    @Override
+    public String getCharacterEncoding() {
+        return this.characterEncoding;
     }
 
     @Override
@@ -61,7 +73,7 @@ public class HttpServletResponseImpl implements HttpServletResponse {
     public PrintWriter getWriter() throws IOException {
         if (callOutput == null) {
             commitHeaders(0);
-            this.writer = new PrintWriter(this.exchangeResponse.getResponseBody(), true, StandardCharsets.UTF_8);
+            this.writer = new PrintWriter(this.exchangeResponse.getResponseBody(), true, Charset.forName(this.characterEncoding));
             this.callOutput = Boolean.FALSE;
             return this.writer;
         }
@@ -69,6 +81,11 @@ public class HttpServletResponseImpl implements HttpServletResponse {
             return this.writer;
         }
         throw new IllegalStateException("Cannot open writer when output stream is opened.");
+    }
+
+    @Override
+    public void setCharacterEncoding(String charset) {
+        this.characterEncoding = charset;
     }
 
     @Override
@@ -84,7 +101,11 @@ public class HttpServletResponseImpl implements HttpServletResponse {
     @Override
     public void setContentType(String type) {
         this.contentType = type;
-        setHeader("Content-Type", contentType);
+        if (type.startsWith("text/")) {
+            setHeader("Content-Type", contentType + "; charset=" + this.characterEncoding);
+        } else {
+            setHeader("Content-Type", contentType);
+        }
     }
 
     @Override
@@ -133,12 +154,35 @@ public class HttpServletResponseImpl implements HttpServletResponse {
     }
 
     @Override
+    public void setLocale(Locale locale) {
+        checkNotCommitted();
+        this.locale = locale;
+    }
+
+    @Override
+    public Locale getLocale() {
+        return this.locale == null ? Locale.getDefault() : this.locale;
+    }
+
+    @Override
     public void addCookie(Cookie cookie) {
         checkNotCommitted();
         if (this.cookies == null) {
             this.cookies = new ArrayList<>();
         }
         this.cookies.add(cookie);
+    }
+
+    @Override
+    public String encodeURL(String url) {
+        // no need to append session id:
+        return url;
+    }
+
+    @Override
+    public String encodeRedirectURL(String url) {
+        // no need to append session id:
+        return url;
     }
 
     @Override
@@ -240,6 +284,9 @@ public class HttpServletResponseImpl implements HttpServletResponse {
     }
 
     public void cleanup() throws IOException {
+        if (!this.committed) {
+            commitHeaders(-1);
+        }
         if (this.callOutput != null) {
             if (this.callOutput.booleanValue()) {
                 this.output.close();
@@ -254,39 +301,5 @@ public class HttpServletResponseImpl implements HttpServletResponse {
         if (this.committed) {
             throw new IllegalStateException("Response is committed.");
         }
-    }
-
-    @Override
-    public String getCharacterEncoding() {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public void setCharacterEncoding(String charset) {
-        // TODO Auto-generated method stub
-    }
-
-    @Override
-    public void setLocale(Locale loc) {
-        // TODO Auto-generated method stub
-    }
-
-    @Override
-    public Locale getLocale() {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public String encodeURL(String url) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public String encodeRedirectURL(String url) {
-        // TODO Auto-generated method stub
-        return null;
     }
 }

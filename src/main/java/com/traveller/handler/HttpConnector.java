@@ -15,69 +15,73 @@ import com.traveller.impl.HttpServletRequestImpl;
 import com.traveller.impl.HttpServletResponseImpl;
 import com.traveller.server.LoginServlet;
 import com.traveller.server.LogoutServlet;
+import com.traveller.utils.Config;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.InetSocketAddress;
+import java.time.Duration;
 import java.util.EventListener;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 @Slf4j
 public class HttpConnector implements HttpHandler,AutoCloseable{
 
-    final ServletContextImpl  servletContext;
+    final Logger logger = LoggerFactory.getLogger(getClass());
 
+    final Config config;
+    final ClassLoader classLoader;
+    final ServletContextImpl servletContext;
     final HttpServer httpServer;
+    final Duration stopDelay = Duration.ofSeconds(5);
 
-    public HttpConnector() throws IOException, ServletException {
-        this.servletContext = new ServletContextImpl();
-        this.servletContext.initializeServlet(List.of(IndexServlet.class, HelloServlet.class, LoginServlet.class, LogoutServlet.class));
-        this.servletContext.initFilters(List.of(LogFilter.class, HelloFilter.class));
-        List<Class<? extends EventListener>> listenerClasses = List.of(HelloHttpSessionAttributeListener.class, HelloHttpSessionListener.class,
-                HelloServletContextAttributeListener.class, HelloServletContextListener.class, HelloServletRequestAttributeListener.class,
-                HelloServletRequestListener.class);
-        for (Class<? extends EventListener> listenerClass : listenerClasses) {
-            this.servletContext.addListener(listenerClass);
-        }
+    public HttpConnector(Config config, String webRoot, Executor executor, ClassLoader classLoader, List<Class<?>> autoScannedClasses) throws IOException {
+        logger.info("starting jerrymouse http server at {}:{}...", config.server.host, config.server.port);
+        this.config = config;
+        this.classLoader = classLoader;
+
+        // init servlet context:
+        Thread.currentThread().setContextClassLoader(this.classLoader);
+        ServletContextImpl ctx = new ServletContextImpl(classLoader, config, webRoot);
+        ctx.initialize(autoScannedClasses);
+        this.servletContext = ctx;
+        Thread.currentThread().setContextClassLoader(null);
+
         // start http server:
-        String host = "0.0.0.0";
-        int port = 8080;
-        this.httpServer = HttpServer.create(new InetSocketAddress(host, port), 0, "/", this);
+        this.httpServer = HttpServer.create(new InetSocketAddress(config.server.host, config.server.port), config.server.backlog, "/", this);
+        this.httpServer.setExecutor(executor);
         this.httpServer.start();
-        log.info("mini-tomcat http server started at {}:{}...", host, port);
+        logger.info("jerrymouse http server started at {}:{}...", config.server.host, config.server.port);
     }
 
-
     @Override
-    public void close() throws Exception {
-        this.httpServer.stop(3);
+    public void close() {
+        this.servletContext.destroy();
+        this.httpServer.stop((int) this.stopDelay.toSeconds());
     }
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
-        log.info("{}: {}?{}", exchange.getRequestMethod(), exchange.getRequestURI().getPath(), exchange.getRequestURI().getRawQuery());
-        var adapter =new HttpExchangeAdapter(exchange);
-        var response = new HttpServletResponseImpl(adapter);
-        var request =new HttpServletRequestImpl(this.servletContext, adapter, response);
-
+        var adapter = new HttpExchangeAdapter(exchange);
+        var response = new HttpServletResponseImpl(this.config, adapter);
+        var request = new HttpServletRequestImpl(this.config, this.servletContext, adapter, response);
+        // process:
         try {
-            this.servletContext.process(request,response);
-        } catch (ServletException e) {
-            log.error(e.getMessage(),e);
+            Thread.currentThread().setContextClassLoader(this.classLoader);
+            this.servletContext.process(request, response);
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+        } finally {
+            Thread.currentThread().setContextClassLoader(null);
+            response.cleanup();
         }
-    }
-
-    void process(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        String name =req.getParameter("name");
-        String html = "<h1>Hello, " + (name == null ? "world" : name) + ".</h1>";
-        resp.setContentType("text/html;charset=utf-8");
-        PrintWriter pw =resp.getWriter();
-        pw.write(html);
-        pw.close();
     }
 
 

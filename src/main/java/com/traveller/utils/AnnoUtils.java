@@ -1,15 +1,13 @@
 package com.traveller.utils;
 
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.Filter;
 import jakarta.servlet.Servlet;
 import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.annotation.WebInitParam;
 import jakarta.servlet.annotation.WebServlet;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class AnnoUtils {
@@ -91,6 +89,14 @@ public class AnnoUtils {
             return new String[0];
         }
         return arraysToSet(wf.value(), wf.urlPatterns()).toArray(String[]::new);
+    }
+
+    public static EnumSet<DispatcherType> getFilterDispatcherTypes(Class<? extends Filter> clazz) {
+        WebFilter w = clazz.getAnnotation(WebFilter.class);
+        if (w == null) {
+            return EnumSet.of(DispatcherType.REQUEST);
+        }
+        return EnumSet.copyOf(Arrays.asList(w.dispatcherTypes()));
     }
 
 }

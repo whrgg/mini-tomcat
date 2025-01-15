@@ -6,14 +6,33 @@ import jakarta.servlet.http.Cookie;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Pattern;
 
 public class HttpUtils {
+
     static final Pattern QUERY_SPLIT = Pattern.compile("\\&");
+
+    public static final Locale DEFAULT_LOCALE = Locale.getDefault();
+
+    public static final List<Locale> DEFAULT_LOCALES = List.of(DEFAULT_LOCALE);
+
+    public static List<Locale> parseLocales(String acceptLanguage) {
+        // try parse Accept-Language: zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7
+        String[] ss = acceptLanguage.split(",");
+        List<Locale> locales = new ArrayList<>(ss.length);
+        for (String s : ss) {
+            int n = s.indexOf(';');
+            String name = n < 0 ? s : s.substring(0, n);
+            int m = name.indexOf('-');
+            if (m < 0) {
+                locales.add(Locale.of(name));
+            } else {
+                locales.add(Locale.of(name.substring(0, m), name.substring(m + 1)));
+            }
+        }
+        return locales.isEmpty() ? DEFAULT_LOCALES : locales;
+    }
 
     /**
      * Parse query string.

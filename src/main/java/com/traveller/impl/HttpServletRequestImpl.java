@@ -6,6 +6,7 @@ import com.traveller.adapter.HttpExchangeRequest;
 import com.traveller.context.ServletContextImpl;
 import com.traveller.session.Attributes;
 import com.traveller.session.HttpHeaders;
+import com.traveller.utils.Config;
 import com.traveller.utils.HttpUtils;
 import com.traveller.utils.Parameters;
 import jakarta.servlet.*;
@@ -24,6 +25,7 @@ import java.util.regex.Pattern;
 
 public class HttpServletRequestImpl implements HttpServletRequest {
 
+    final Config config;
     final ServletContextImpl servletContext;
     final HttpExchangeRequest exchangeRequest;
     final HttpServletResponse response;
@@ -39,12 +41,13 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     Boolean inputCalled = null;
 
-    public HttpServletRequestImpl(ServletContextImpl servletContext, HttpExchangeRequest exchangeRequest, HttpServletResponse response) {
+    public HttpServletRequestImpl(Config config, ServletContextImpl servletContext, HttpExchangeRequest exchangeRequest, HttpServletResponse response) {
+        this.config = config;
         this.servletContext = servletContext;
         this.exchangeRequest = exchangeRequest;
         this.response = response;
 
-        this.characterEncoding = "UTF-8";
+        this.characterEncoding = config.server.requestEncoding;
         this.method = exchangeRequest.getRequestMethod();
         this.headers = new HttpHeaders(exchangeRequest.getRequestHeaders());
         this.parameters = new Parameters(exchangeRequest, this.characterEncoding);
@@ -52,8 +55,6 @@ public class HttpServletRequestImpl implements HttpServletRequest {
             this.contentLength = getIntHeader("Content-Length");
         }
     }
-
-
 
     @Override
     public String getCharacterEncoding() {
@@ -126,12 +127,32 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     @Override
     public String getScheme() {
-        return "http";
+        String header = "http";
+        String forwarded = config.server.forwardedHeaders.forwardedProto;
+        if (!forwarded.isEmpty()) {
+            String forwardedHeader = getHeader(forwarded);
+            if (forwardedHeader != null) {
+                header = forwardedHeader;
+            }
+        }
+        return header;
     }
 
     @Override
     public String getServerName() {
-        return "localhost";
+        String header = getHeader("Host");
+        String forwarded = config.server.forwardedHeaders.forwardedHost;
+        if (!forwarded.isEmpty()) {
+            String forwardedHeader = getHeader(forwarded);
+            if (forwardedHeader != null) {
+                header = forwardedHeader;
+            }
+        }
+        if (header == null) {
+            InetSocketAddress address = this.exchangeRequest.getLocalAddress();
+            header = address.getHostString();
+        }
+        return header;
     }
 
     @Override
@@ -142,17 +163,25 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     @Override
     public Locale getLocale() {
-        return Locale.CHINA;
+        String langs = getHeader("Accept-Language");
+        if (langs == null) {
+            return HttpUtils.DEFAULT_LOCALE;
+        }
+        return HttpUtils.parseLocales(langs).get(0);
     }
 
     @Override
     public Enumeration<Locale> getLocales() {
-        return Collections.enumeration(List.of(Locale.CHINA, Locale.US));
+        String langs = getHeader("Accept-Language");
+        if (langs == null) {
+            return Collections.enumeration(HttpUtils.DEFAULT_LOCALES);
+        }
+        return Collections.enumeration(HttpUtils.parseLocales(langs));
     }
 
     @Override
     public boolean isSecure() {
-        return false;
+        return "https".equals(getScheme().toLowerCase());
     }
 
     @Override
@@ -299,7 +328,7 @@ public class HttpServletRequestImpl implements HttpServletRequest {
         Cookie[] cookies = getCookies();
         if (cookies != null) {
             for (Cookie cookie : cookies) {
-                if ("JSESSIONID".equals(cookie.getName())) {
+                if (config.server.webApp.sessionCookieName.equals(cookie.getName())) {
                     sessionId = cookie.getValue();
                     break;
                 }
@@ -314,7 +343,7 @@ public class HttpServletRequestImpl implements HttpServletRequest {
             }
             sessionId = UUID.randomUUID().toString();
             // set cookie:
-            String cookieValue = "JSESSIONID=" + sessionId + "; Path=/; SameSite=Strict; HttpOnly";
+            String cookieValue = config.server.webApp.sessionCookieName + "=" + sessionId + "; Path=/; SameSite=Strict; HttpOnly";
             this.response.addHeader("Set-Cookie", cookieValue);
         }
         return this.servletContext.sessionManager.getSession(sessionId);
@@ -446,8 +475,20 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     @Override
     public String getRemoteAddr() {
-        InetSocketAddress address = this.exchangeRequest.getRemoteAddress();
-        return address.getHostString();
+        String addr = null;
+        String forwarded = config.server.forwardedHeaders.forwardedFor;
+        if (forwarded != null && !forwarded.isEmpty()) {
+            String forwardedHeader = getHeader(forwarded);
+            if (forwardedHeader != null) {
+                int n = forwardedHeader.indexOf(',');
+                addr = n < 0 ? forwardedHeader : forwardedHeader.substring(n);
+            }
+        }
+        if (addr == null) {
+            InetSocketAddress address = this.exchangeRequest.getRemoteAddress();
+            addr = address.getHostString();
+        }
+        return addr;
     }
 
     @Override
@@ -484,9 +525,4 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     public String toString() {
         return String.format("HttpServletRequestImpl@%s[%s:%s]", Integer.toHexString(hashCode()), getMethod(), getRequestURI());
     }
-
-    public InetSocketAddress getRemoteAddress() {
-        return this.exchangeRequest.getRemoteAddress();
-    }
-
 }
